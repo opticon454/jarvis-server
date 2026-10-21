@@ -1,8 +1,8 @@
 # Changelog
 
-## 20261021-1500
+## 20261021-1349
 
-- Published feature tracking conventions for the GitHub Board and roadmap, including stable feature IDs, area/status/scope labels and prerequisite relationships.
+- Published all 315 feature records as labelled GitHub issues shared by the Board and roadmap, with a Markdown issue index and prerequisite relationships.
 
 ## 20261021-1312
 

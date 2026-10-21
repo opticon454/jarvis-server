@@ -1,5 +1,7 @@
 # Jarvis feature migration tracker
 
+[Feature issue index](Get-Feature-Issues.md): direct links for all 315 feature IDs.
+
 **Review date:** 2026-10-21, Australia/Perth.
 
 This inventory covers **75 source folders and 315 feature entries**, comparing `/mnt/user/Scripts/GitHub/alexberardi` with this Go checkout. The upstream `alexberardi/jarvis-server` folder is excluded. Pantry is documented but will not be consolidated. The new Display frontend requirement is included.

@@ -1,5 +1,7 @@
 # GitHub migration tracking
 
+[Feature issue index](Get-Feature-Issues.md): direct links for all 315 feature IDs.
+
 [Migration inventory](Get-Migration-Tracker.md) | [Dependency map](Get-Dependency-Map.md)
 
 The [Jarvis-server Board](https://github.com/users/opticon454/projects/5) and [Jarvis-server roadmap](https://github.com/users/opticon454/projects/3) use the same feature issues in [opticon454/jarvis-server](https://github.com/opticon454/jarvis-server/issues). Updating an issue updates the shared record. Project fields are separate, so keep the Status field aligned in both projects when moving work.
