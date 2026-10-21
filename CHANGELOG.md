@@ -1,5 +1,9 @@
 # Changelog
 
+## 20261021-1420
+
+- Corrected feature issue titles to use `FEATURE:` and documented migration IDs as traceability references rather than title prefixes.
+
 ## 20261021-1349
 
 - Published all 315 feature records as labelled GitHub issues shared by the Board and roadmap, with a Markdown issue index. Verified all issue states, project statuses and 527 native prerequisite relationships.

@@ -8,7 +8,7 @@ The [Jarvis-server Board](https://github.com/users/opticon454/projects/5) and [J
 
 ## Identification and labels
 
-Issue titles begin with the stable feature ID, for example `[AUTH-01]` or `[DISPLAY-01]`. Keep these IDs when splitting work, adding implementation PRs or revising scope. Each issue links to the reviewed feature, source evidence and prerequisites.
+Feature issue titles use `FEATURE: <description>`, following the user's work-item terminology. For example, `FEATURE: Background upcoming-event alerts and appointment signals`. Migration IDs such as `CAL-03` remain in the issue record, Markdown inventory and dependency ledger for traceability. Keep these IDs when splitting work or adding implementation PRs. Each issue links to its source evidence and prerequisites.
 
 - `migration`: all 315 inventory entries.
 - `area:*`: the feature register, with `area:display` for the five display requirements.
@@ -40,7 +40,7 @@ The inventory has 527 directed prerequisite links. Issue bodies link to prerequi
 
 Start with the lowest outstanding dependency level, resolve scope decisions for retained components, then schedule dependent features. A completed capability may support later work without reopening it. Check disposition before treating a closed not-planned prerequisite as supplied functionality.
 
-## Heading abbreviations
+## Migration identifiers
 
 | Prefix   | Source repository or feature family        |
 | -------- | ------------------------------------------ |

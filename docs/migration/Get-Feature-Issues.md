@@ -2,7 +2,7 @@
 
 [Tracker](Get-Migration-Tracker.md) | [Tracking conventions](Get-GitHub-Tracking.md) | [Dependencies](Get-Dependency-Map.md) | [Board](https://github.com/users/opticon454/projects/5) | [Roadmap](https://github.com/users/opticon454/projects/3)
 
-All 315 feature records have a repository issue shared by both projects. Status and disposition below are the 21 October 2026 audit snapshot; consult the linked issue for later delivery updates.
+All 315 feature records have a repository issue shared by both projects. Issue titles use `FEATURE: <description>`; the feature IDs below identify the migration records. Status and disposition below are the 21 October 2026 audit snapshot; consult the linked issue for later delivery updates.
 
 ## Foundations
 

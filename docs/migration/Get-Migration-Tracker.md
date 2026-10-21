@@ -70,7 +70,7 @@ This tracker supplements the existing architecture and decision documents; it do
 
 ## GitHub tracking
 
-[Board, roadmap, issue conventions and heading abbreviations](Get-GitHub-Tracking.md) describe the GitHub tracking setup.
+[Board, roadmap, issue conventions and migration identifiers](Get-GitHub-Tracking.md) describe the GitHub tracking setup.
 
 Use the feature IDs as stable external keys; keep them when an item is split or moved. Suggested fields: Feature ID, title, source repository, disposition, migration status, predecessor IDs, target code, acceptance/evidence, owner, issue/PR and validation date. Each feature heading already has a stable Markdown anchor. The dependency ledger is published as blocked-by relations. Pantry entries belong in a reference view, not the consolidation sprint.
 
