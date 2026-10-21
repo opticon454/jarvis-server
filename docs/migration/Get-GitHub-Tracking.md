@@ -121,3 +121,9 @@ Start with the lowest outstanding dependency level, resolve scope decisions for 
 | TTS      | jarvis-tts                                 |
 | WEB      | jarvis-web                                 |
 | ZWAVE    | jarvis-device-zwave                        |
+
+## Upload verification
+
+The GitHub upload was verified on 21 October 2026 against the complete Markdown inventory: 315 unique feature issues, every expected label, all 527 native blocked-by links and the correct Status in both projects. There are 122 issues closed as completed, 156 open issues and 37 closed as not planned (24 cuts and 13 Pantry references). The documentation PR is a separate project item.
+
+The [documentation PR](https://github.com/opticon454/jarvis-server/pull/1) contains the inventory and issue index. No CI checks were reported after upload. Local `scripts/check` and the required race test command were attempted but could not run because Go and mise are unavailable. No fresh runtime or hardware acceptance is claimed.
