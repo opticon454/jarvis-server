@@ -131,3 +131,8 @@ checks touch navigation, access confirmation, a 1,000-device catalogue, visible 
 horizontal overflow in landscape, portrait and phone viewports. It writes screenshots and JSON.
 Hardware, receiver sender compatibility and subscription sign-in require their own recorded results;
 passing these checks alone does not establish compatibility with a phone application or website.
+
+The Surface Pro 6 pilot required the linux-surface kernel and `iptsd`; the stock Debian kernel did
+not expose its Intel touchscreen. The original kernel remains available for rollback. After reboot,
+the user confirmed finger navigation, the full-screen speech circle and PIN exit with voice
+continuing. This hardware acceptance does not establish subscription or stock Cast sender support.
