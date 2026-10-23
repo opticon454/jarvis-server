@@ -30,7 +30,9 @@ func TestLocalShellTrustBoundaryAndExit(t *testing.T) {
 	c, _ := shared.MergeConfiguration(nil)
 	c.Enabled = true
 	v, _ := shared.NewVerifier("1234")
+	e.mu.Lock()
 	e.delivery = shared.Delivery{Configuration: c, Verifier: v, Revision: shared.GetRevision(c, v)}
+	e.mu.Unlock()
 	do := func(path, origin, body string, secret bool) int {
 		req, _ := http.NewRequest("POST", e.address+path, strings.NewReader(body))
 		req.Header.Set("X-Jarvis-Display", "1")
@@ -61,10 +63,16 @@ func TestLocalShellTrustBoundaryAndExit(t *testing.T) {
 	if code := do("/api/exit", e.address, `{"pin":"1234"}`, true); code != 429 {
 		t.Fatal("rate limit", code)
 	}
+	e.mu.Lock()
 	e.blockedUntil = time.Time{}
 	e.mediaKind = "website"
 	e.state = "speaking"
-	if code := do("/api/exit", e.address, `{"pin":"1234"}`, true); code != 200 || !e.exited || e.mediaKind != "" || e.ctx.Err() != nil || e.state != "speaking" {
+	e.mu.Unlock()
+	code := do("/api/exit", e.address, `{"pin":"1234"}`, true)
+	e.mu.Lock()
+	exited := e.exited && e.mediaKind == "" && e.ctx.Err() == nil && e.state == "speaking"
+	e.mu.Unlock()
+	if code != 200 || !exited {
 		t.Fatal("exit failed", code)
 	}
 	req, _ := http.NewRequest("GET", e.address+"/api/state", nil)
@@ -262,8 +270,8 @@ func TestLocalBrowserDoesNotRequestLoginKeyring(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.Close()
-	e.delivery.Configuration.Enabled = true
 	e.mu.Lock()
+	e.delivery.Configuration.Enabled = true
 	defer e.mu.Unlock()
 	e.EnsureProcesses()
 	if e.browser == nil {

@@ -21,14 +21,14 @@ const server = createServer(async (req, res) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const base = `http://127.0.0.1:${server.address().port}`
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || '/usr/bin/chromium', headless: true })
-const config = { enabled: true, clock: 'combined', hour_24: true, timezone: 'Australia/Perth', idle_seconds: 120, slide_seconds: 30, photos: [], favourites: ['d1'], night_dim: false, dim_start: 22, dim_end: 7, dim_percent: 35, destination: 'local', shortcuts: [{ name: 'Example streaming service', url: 'https://example.org' }] }
+const config = { waveform_colour: '#a56bff', waveform_emphasis: 150, enabled: true, clock: 'combined', hour_24: true, timezone: 'Australia/Perth', idle_seconds: 120, slide_seconds: 30, photos: [], favourites: ['d1'], night_dim: false, dim_start: 22, dim_end: 7, dim_percent: 35, destination: 'local', shortcuts: [{ name: 'Example streaming service', url: 'https://example.org' }] }
 const devices = Array.from({ length: 1000 }, (_, i) => ({ id: `d${i}`, name: i === 0 ? 'Front door' : `Living room light ${i}`, entity_id: `light.${i}`, domain: i === 0 ? 'lock' : 'light', room_name: i % 2 ? 'Living room' : 'Kitchen', supported_actions: [{ button_action: i === 0 ? 'unlock' : 'turn_on', button_text: i === 0 ? 'Unlock' : 'Turn on' }] }))
 const report = []
 try {
   for (const viewport of [{ width: 1280, height: 800 }, { width: 800, height: 1280 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport, hasTouch: true, isMobile: true })
     const page = await context.newPage(), errors = [], actions = []
-    let voice = 'idle'
+    let voice = 'idle', idle = false, clock = config.clock
     page.on('pageerror', e => errors.push(e.message))
     await page.route('**/api/**', async route => {
       const req = route.request(), api = new URL(req.url()).pathname
@@ -37,7 +37,7 @@ try {
         return
       }
       let body
-      if (api === '/api/state') body = { configuration: config, voice, last_interaction: Date.now(), playback: { active: false, controllable: false }, theme_url: '', receivers: { playercast: 'running', cast: 'disabled' } }
+      if (api === '/api/state') body = { configuration: { ...config, clock, idle_seconds: idle ? 0 : config.idle_seconds }, voice, last_interaction: idle ? Date.now() - 180000 : Date.now(), playback: { active: false, controllable: false }, theme_url: '', receivers: { playercast: 'running', cast: 'disabled' } }
       else if (api === '/api/devices') body = devices
       else if (api.endsWith('/control')) { actions.push(req.postDataJSON()); body = { success: true } }
       else if (api.endsWith('/state')) body = { state: { state: 'off' } }
@@ -45,6 +45,10 @@ try {
       await route.fulfill({ json: body })
     })
     await page.goto(`${base}/display.html`)
+    const mainClock = page.locator('.display-clock .digital')
+    const fontSize = await mainClock.evaluate(n => parseFloat(getComputedStyle(n).fontSize))
+    assert.ok(Math.abs(fontSize - Math.min(192, Math.max(78, viewport.width * 0.15))) < 1, 'Home clock should be 50% larger')
+    await page.screenshot({ path: path.join(output, `Home-${viewport.width}x${viewport.height}.png`), fullPage: true })
     await page.getByRole('button', { name: 'Devices', exact: true }).tap()
     await page.getByRole('heading', { name: 'Front door', exact: true }).waitFor()
     assert.equal(await page.getByRole('article').count(), 24)
@@ -88,8 +92,19 @@ try {
     await page.screenshot({ path: path.join(output, `Speech-${viewport.width}x${viewport.height}.png`), fullPage: true })
     voice = 'idle'
     await waveform.waitFor({ state: 'hidden' })
+    idle = true
+    for (const kind of ['digital', 'analogue', 'combined']) {
+      clock = kind
+      const idleClock = page.getByRole('button', { name: 'Wake Jarvis display' }).locator(`[data-clock="${kind}"]`)
+      await idleClock.waitFor({ state: 'visible' })
+      const clockBox = await idleClock.boundingBox()
+      assert.ok(Math.abs(clockBox.width - viewport.width * 0.75) <= 1, 'idle clock should use 75% of screen width')
+      assert.ok(Math.abs(clockBox.height - viewport.height * 0.75) <= 1, 'idle clock should use 75% of screen height')
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'idle clock must not overflow')
+      await page.screenshot({ path: path.join(output, `Idle-${kind}-${viewport.width}x${viewport.height}.png`) })
+    }
     assert.deepEqual(errors, [])
-    report.push({ viewport, devices: devices.length, renderedDevices: 24, accessConfirmation: 'passed', fullScreenSpeech: 'passed', boundaryContrast, overflow, smallTargets, errors })
+    report.push({ viewport, devices: devices.length, renderedDevices: 24, accessConfirmation: 'passed', fullScreenSpeech: 'passed', idleClock75Percent: 'passed', boundaryContrast, overflow, smallTargets, errors })
     await context.close()
   }
   await writeFile(path.join(output, 'Browser-Results.json'), JSON.stringify(report, null, 2))

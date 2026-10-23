@@ -18,17 +18,17 @@ func TestDisplaySettingsDeliveryAndIsolation(t *testing.T) {
 	p := "/api/v0/display/config/"
 	e.do("PUT", p+"defaults", map[string]any{"overrides": map[string]any{"enabled": true}}, bearer(admin)).want(400)
 	e.do("GET", p+"defaults", nil, bearer(member)).want(403)
-	saved := e.do("PUT", p+"defaults", map[string]any{"overrides": map[string]any{"idle_seconds": 90}, "pin": "1234"}, bearer(admin)).want(200).json()
+	saved := e.do("PUT", p+"defaults", map[string]any{"overrides": map[string]any{"idle_seconds": 90, "waveform_colour": "#11aaff", "waveform_emphasis": 175}, "pin": "1234"}, bearer(admin)).want(200).json()
 	if _, ok := saved["verifier"]; ok {
 		t.Fatal("verifier exposed")
 	}
 	if saved["pin_configured"] != true {
 		t.Fatal(saved)
 	}
-	e.do("PUT", p+"n1", map[string]any{"overrides": map[string]any{"enabled": true, "clock": "combined"}}, bearer(admin)).want(200)
+	e.do("PUT", p+"n1", map[string]any{"overrides": map[string]any{"enabled": true, "clock": "combined", "waveform_colour": "#ffaa11"}}, bearer(admin)).want(200)
 	d := e.do("GET", "/api/v0/node/display", nil, n.h()).want(200).json()
 	c := d["configuration"].(map[string]any)
-	if c["idle_seconds"] != 90.0 || c["clock"] != "combined" || !strings.HasPrefix(d["verifier"].(string), "$2") {
+	if c["waveform_colour"] != "#ffaa11" || c["waveform_emphasis"] != 175.0 || c["idle_seconds"] != 90.0 || c["clock"] != "combined" || !strings.HasPrefix(d["verifier"].(string), "$2") {
 		t.Fatal(d)
 	}
 	e.do("POST", "/api/v0/node/display/ack", map[string]any{"revision": d["revision"]}, n.h()).want(200)

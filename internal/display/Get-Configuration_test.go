@@ -77,3 +77,34 @@ func TestThemeArchiveBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestWaveformAppearanceInheritanceAndValidation(t *testing.T) {
+	c, err := MergeConfiguration(map[string]any{"waveform_colour": "#ff6600", "waveform_emphasis": 175}, map[string]any{"waveform_colour": "#00ccff"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.WaveformColour != "#00ccff" || c.WaveformEmphasis != 175 {
+		t.Fatal(c)
+	}
+	c, err = MergeConfiguration(map[string]any{"waveform_colour": "#ff6600"}, map[string]any{"waveform_colour": nil})
+	if err != nil || c.WaveformColour != "#ff6600" {
+		t.Fatal(c, err)
+	}
+	for _, bad := range []map[string]any{{"waveform_colour": "red;url(https://example.org)"}, {"waveform_colour": "#12345"}, {"waveform_emphasis": 0}, {"waveform_emphasis": 201}} {
+		if _, err := MergeConfiguration(bad); err == nil {
+			t.Fatal("accepted invalid appearance", bad)
+		}
+	}
+}
+
+func TestLegacyCacheRevisionWithoutAppearanceFields(t *testing.T) {
+	const legacy = `{"enabled":false,"theme":"builtin","favourites":[],"idle_seconds":120,"slide_seconds":30,"photos":[],"clock":"digital","hour_24":true,"timezone":"","night_dim":false,"dim_start":22,"dim_end":7,"dim_percent":35,"destination":"local","shortcuts":[],"playercast":false,"experimental_cast":false,"receiver_name":"Jarvis Display"}`
+	c, err := MergeConfiguration(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.WaveformColour, c.WaveformEmphasis = "", 0
+	if got, want := GetRevision(c, ""), Digest([]byte(`{"Config":`+legacy+`,"Verifier":""}`)); got != want {
+		t.Fatal("older offline cache revision changed", got, want)
+	}
+}

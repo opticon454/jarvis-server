@@ -4,7 +4,7 @@ import { Home, Lightbulb, Play, Shield, Star, RotateCcw } from 'lucide-react'
 import './Show-Display.css'
 import ShowSpeechWaveform from './Show-SpeechWaveform'
 
-type Config = { enabled: boolean; clock: string; hour_24: boolean; timezone: string; idle_seconds: number; slide_seconds: number; photos: string[]; favourites: string[]; night_dim: boolean; dim_start: number; dim_end: number; dim_percent: number; shortcuts: { name: string; url: string }[]; destination: string }
+type Config = { waveform_colour?: string; waveform_emphasis?: number; enabled: boolean; clock: string; hour_24: boolean; timezone: string; idle_seconds: number; slide_seconds: number; photos: string[]; favourites: string[]; night_dim: boolean; dim_start: number; dim_end: number; dim_percent: number; shortcuts: { name: string; url: string }[]; destination: string }
 type Device = { id: string; name: string; domain: string; entity_id: string; room_name: string; supported_actions: { button_action: string; button_text: string }[] | null }
 type State = { configuration: Config; voice: string; last_interaction: number; playback: { active: boolean; kind: string; controllable: boolean; paused?: boolean; position?: number; duration?: number }; theme_url: string; receivers: Record<string, string>; status: string }
 async function CallDisplay(path: string, body?: unknown) {
@@ -20,7 +20,7 @@ export function ShowClock({ now, config }: { now: Date; config: Config }) {
   const parts = new Intl.DateTimeFormat('en-AU', { ...options, hour12: false }).formatToParts(now)
   const get = (type: string) => Number(parts.find(p => p.type === type)?.value || 0)
   const hour = get('hour'), minute = get('minute'), second = get('second')
-  return <div className="display-clock">
+  return <div className="display-clock" data-clock={config.clock} data-hour-format={config.hour_24 ? '24' : '12'}>
     {(config.clock === 'analogue' || config.clock === 'combined') && <svg className="analogue" viewBox="0 0 200 200" role="img" aria-label={now.toLocaleTimeString('en-AU', options)}>
       <circle cx="100" cy="100" r="94" fill="none" stroke="currentColor" strokeWidth="2" />
       {Array.from({ length: 12 }, (_, i) => <line key={i} x1="100" y1="10" x2="100" y2="20" stroke="currentColor" strokeWidth="3" transform={`rotate(${i * 30} 100 100)`} />)}
@@ -136,7 +136,7 @@ export function ShowDisplay() {
   const photo = config.photos.length ? config.photos[Math.floor(now.getTime() / (config.slide_seconds * 1000)) % config.photos.length] : ''
   const custom = state.theme_url && !themeFailed
   return <main className="display-shell" onPointerDown={() => setLastTouch(Date.now())} onKeyDown={() => setLastTouch(Date.now())} style={{ filter: dim ? `brightness(${config.dim_percent}%)` : undefined }}>
-    <ShowSpeechWaveform voice={state.voice} theme={frame} />
+    <ShowSpeechWaveform voice={state.voice} theme={frame} colour={config.waveform_colour || '#a56bff'} emphasis={config.waveform_emphasis || 150} />
     <header><span className="brand">Jarvis</span><span role="status" className="voice-state">{state.voice === 'idle' ? 'Ready when you are' : state.voice.replace('_', ' ')}</span><button onClick={() => setExit(true)}><Shield size={21} aria-hidden="true" />Exit</button></header>
     {error && <div className="display-error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     {offline && <p className="display-note" role="status">Server offline. Clocks and cached themes remain available.</p>}

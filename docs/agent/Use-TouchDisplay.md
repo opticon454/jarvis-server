@@ -38,9 +38,14 @@ membership, checks the catalogue's permitted action and refuses identity or rout
 Unlocking or opening an access device requires confirmation in the trusted shell.
 
 The circular speech waveform uses live voice RMS samples delivered over a local authenticated event
-stream, 20 times per second. It shows recent amplitude history around a circle while Jarvis speaks;
-it is not a frequency spectrum. The circle fills the display during replies, with the trusted
-exit control still visible. Reduced-motion preference produces a static indicator. The shell
+stream, 20 times per second. It shows amplitude-driven radial flares around a fixed circle while Jarvis speaks;
+it is not a frequency spectrum. Peaks burst outwards at fixed angles and never travel around the
+ring. The idle clock uses a 75% display area and the Home clock is 50% larger than its original size. The circle fills the display during replies, with the trusted
+exit control still visible. Configure **Speech strand colour** and **Speech waveform emphasis (%)**
+in display defaults or override either field per node. Emphasis accepts 25 to 200%, defaults to
+150%, and colour accepts `#RRGGBB`. **Use server default** restores inheritance. The JSON fields
+are `waveform_colour` and `waveform_emphasis`; both are omitted when absent in older cached
+configurations so their revision checks remain valid. Reduced-motion preference produces a static indicator. The shell
 keeps this indicator and recovery/exit controls outside theme code. Controllable mpv playback pauses
 for voice, the shell comes forward where X11 window control is available, and playback resumes
 only if it was playing before the interaction. Streaming websites remain under touch control.

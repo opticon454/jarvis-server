@@ -28,6 +28,8 @@ type Shortcut struct {
 	URL  string `json:"url"`
 }
 type Configuration struct {
+	WaveformColour   string     `json:"waveform_colour,omitempty"`
+	WaveformEmphasis int        `json:"waveform_emphasis,omitempty"`
 	Enabled          bool       `json:"enabled"`
 	Theme            string     `json:"theme"`
 	Favourites       []string   `json:"favourites"`
@@ -54,7 +56,7 @@ type Delivery struct {
 }
 
 func MergeConfiguration(layers ...map[string]any) (Configuration, error) {
-	c := Configuration{Theme: "builtin", Favourites: []string{}, IdleSeconds: 120, SlideSeconds: 30, Photos: []string{}, Clock: "digital", Hour24: true, Destination: "local", Shortcuts: []Shortcut{}, ReceiverName: "Jarvis Display", DimStart: 22, DimEnd: 7, DimPercent: 35}
+	c := Configuration{WaveformColour: "#a56bff", WaveformEmphasis: 150, Theme: "builtin", Favourites: []string{}, IdleSeconds: 120, SlideSeconds: 30, Photos: []string{}, Clock: "digital", Hour24: true, Destination: "local", Shortcuts: []Shortcut{}, ReceiverName: "Jarvis Display", DimStart: 22, DimEnd: 7, DimPercent: 35}
 	b, _ := json.Marshal(c)
 	var merged map[string]any
 	_ = json.Unmarshal(b, &merged)
@@ -77,6 +79,9 @@ func MergeConfiguration(layers ...map[string]any) (Configuration, error) {
 	}
 	if c.IdleSeconds < 10 || c.IdleSeconds > 86400 || c.SlideSeconds < 5 || c.SlideSeconds > 3600 || c.DimStart < 0 || c.DimStart > 23 || c.DimEnd < 0 || c.DimEnd > 23 || c.DimPercent < 10 || c.DimPercent > 100 {
 		return c, errors.New("display timing or dimming is out of range")
+	}
+	if !regexp.MustCompile(`^#[0-9a-fA-F]{6}$`).MatchString(c.WaveformColour) || c.WaveformEmphasis < 25 || c.WaveformEmphasis > 200 {
+		return c, errors.New("waveform colour must be #RRGGBB and emphasis must be 25 to 200 percent")
 	}
 	if c.Clock != "digital" && c.Clock != "analogue" && c.Clock != "combined" && c.Clock != "photos" {
 		return c, errors.New("invalid clock format")

@@ -1,5 +1,19 @@
 # Changelog
 
+## 20261023-2209
+
+- Fixed the PIN-exit test fixture to lock shared engine state while the supervisor runs; retained every exit, rate-limit and voice-continuation assertion (issue 322).
+
+## 20261023-2201
+
+- Added inherited server and per-node speech strand colour/emphasis settings, with stronger 150% default emphasis and bounded colour/intensity validation. Preserved the revision format for older cached configuration.
+- Increased the Home screen clock by 50% while retaining the separate 75% idle clock layout.
+
+## 20261023-2147
+
+- Replaced the travelling speech history with fixed radial flare shapes that burst outwards together with speech amplitude, retaining full-screen presentation and reduced-motion support.
+- Enlarged the idle clock to a responsive 75% display area for digital, analogue and combined views.
+
 ## 20261023-2140
 
 - Changed the live circular speech waveform to fill the display during replies, retaining the trusted exit control above it. Added rendered landscape, portrait and phone coverage for its size and return to the normal view.
