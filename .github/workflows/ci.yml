@@ -663,7 +663,8 @@ jobs:
           # $V0 in dist/old: v0.1.0-rc4's source, older than the privileged update helper (ID11):
           # no updater LaunchDaemon or Windows service, a unit whose ExecStartPre has no --owner.
           # Upgrading from it must end with the new version's service definition.
-          git fetch --depth=1 origin tag v0.1.0-rc4
+          # The historical upgrade fixture belongs to upstream, including when testing a fork.
+          git fetch --depth=1 https://github.com/alexberardi/jarvis-server.git tag v0.1.0-rc4
           git worktree add "$RUNNER_TEMP/old" v0.1.0-rc4
           cp -R internal/voice/sherpa/libs "$RUNNER_TEMP/old/internal/voice/sherpa/"
           release "$V0" dist/old "$RUNNER_TEMP/old"
