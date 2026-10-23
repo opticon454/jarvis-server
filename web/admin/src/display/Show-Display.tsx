@@ -41,8 +41,8 @@ export function ShowDisplay() {
   const parameterDialog = useRef<HTMLDialogElement>(null)
   const [states, setStates] = useState<Record<string, string>>({})
   const [view, setView] = useState('Home')
-  const [now, setNow] = useState(new Date())
-  const [lastTouch, setLastTouch] = useState(Date.now())
+  const [now, setNow] = useState(() => new Date())
+  const [lastTouch, setLastTouch] = useState(() => Date.now())
   const [error, setError] = useState('')
   const [offline, setOffline] = useState(false)
   const [search, setSearch] = useState('')
@@ -61,11 +61,11 @@ export function ShowDisplay() {
   const confirmDialog = useRef<HTMLDialogElement>(null)
   const config = state?.configuration
   useEffect(() => {
-    let active = true, pending = false
+    let active = true, pending = false, previousTheme = ''
     const poll = async () => {
       if (pending) return
       pending = true
-      try { const s = await CallDisplay('state') as unknown as State; if (active) setState(s) } catch (e) { if (active) setError((e as Error).message) } finally { pending = false }
+      try { const s = await CallDisplay('state') as unknown as State; if (active) { if (previousTheme !== s.theme_url) { previousTheme = s.theme_url; setThemeReady(false); setThemeFailed(false) } setState(s) } } catch (e) { if (active) setError((e as Error).message) } finally { pending = false }
     }
     void poll(); const t = setInterval(() => { setNow(new Date()); void poll() }, 1000)
     return () => { active = false; clearInterval(t) }
@@ -75,7 +75,6 @@ export function ShowDisplay() {
     const load = async () => { try { const d = await CallDisplay('devices'); if (active) { setDevices(d as unknown as Device[]); setOffline(false) } } catch { if (active) setOffline(true) } }
     void load(); const t = setInterval(() => void load(), 30000); return () => { active = false; clearInterval(t) }
   }, [])
-  useEffect(() => { setThemeReady(false); setThemeFailed(false) }, [state?.theme_url])
   useEffect(() => { if (themeReady || !state?.theme_url) return; const t = setTimeout(() => setThemeFailed(true), 5000); return () => clearTimeout(t) }, [themeReady, state?.theme_url])
   useEffect(() => { if (exit) dialog.current?.showModal(); else dialog.current?.close() }, [exit])
   useEffect(() => { if (parameters) parameterDialog.current?.showModal(); else parameterDialog.current?.close() }, [parameters])

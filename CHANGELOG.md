@@ -1,5 +1,17 @@
 # Changelog
 
+## 20261023-2221
+
+- Kept display fixture coverage portable: inspect the real Chromium command without a shell and use a short mpv socket path on macOS (issue 326).
+
+## 20261023-2217
+
+- Fetch the unchanged rc4 installer upgrade fixture from its upstream repository so forks do not need to publish the historical release tag (issue 325).
+
+## 20261023-2215
+
+- Fixed React hook lint findings in the display settings loader, theme reset and clock initialisers without changing the delivered configuration or appearance (issue 324).
+
 ## 20261023-2209
 
 - Fixed the PIN-exit test fixture to lock shared engine state while the supervisor runs; retained every exit, rate-limit and voice-continuation assertion (issue 322).

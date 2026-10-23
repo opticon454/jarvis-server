@@ -150,8 +150,10 @@ func TestMediaValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.Close()
+	e.mu.Lock()
 	e.delivery.Configuration.Enabled = true
 	e.delivery.Configuration.Destination = "local"
+	e.mu.Unlock()
 	for _, r := range []MediaRequest{{Action: "play", URL: "file:///etc/passwd"}, {Action: "play", URL: "/etc/passwd"}, {Action: "play", URL: "javascript:alert(1)"}, {Action: "seek", Seconds: -1}, {Action: "shell"}} {
 		if _, err := e.ControlMedia(context.Background(), r); err == nil {
 			t.Fatal("unsafe media request accepted", r)
@@ -161,7 +163,11 @@ func TestMediaValidation(t *testing.T) {
 
 func TestVoicePausesOnlyPlayingMedia(t *testing.T) {
 	t.Setenv("DISPLAY", "")
-	root := t.TempDir()
+	root, err := os.MkdirTemp("", "jd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
 	e, err := StartDisplay(context.Background(), root, fstest.MapFS{"display.html": {Data: []byte("x")}})
 	if err != nil {
 		t.Fatal(err)
@@ -259,29 +265,15 @@ func TestVoiceLevelIsStreamedWithoutCredentials(t *testing.T) {
 }
 
 func TestLocalBrowserDoesNotRequestLoginKeyring(t *testing.T) {
-	t.Setenv("DISPLAY", ":test")
-	bin := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bin, "chromium"), []byte("#!/bin/sh\nread ignored\n"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", bin)
-	e, err := StartDisplay(context.Background(), t.TempDir(), fstest.MapFS{"display.html": {Data: []byte("display")}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer e.Close()
-	e.mu.Lock()
-	e.delivery.Configuration.Enabled = true
-	defer e.mu.Unlock()
-	e.EnsureProcesses()
-	if e.browser == nil {
-		t.Fatal("browser did not start")
-	}
-	args := strings.Join(e.browser.Args, " ")
+	e := &Engine{ctx: context.Background(), root: t.TempDir(), address: "http://127.0.0.1:1234", secret: "test-only"}
+	args := strings.Join(e.GetBrowserCommand().Args, " ")
 	if !strings.Contains(args, "--hide-crash-restore-bubble") {
 		t.Fatal("browser would show restore popup after restart")
 	}
 	if !strings.Contains(args, "--password-store=basic") {
 		t.Fatal("local browser would request a login keyring")
+	}
+	if !strings.Contains(args, "--proxy-bypass-list=<-loopback>;127.0.0.1:1234") {
+		t.Fatal("local browser lost network isolation")
 	}
 }

@@ -290,6 +290,10 @@ func (e *Engine) StopReceivers() {
 	e.receivers = map[string]*exec.Cmd{}
 	e.receiverStatus = map[string]string{}
 }
+func (e *Engine) GetBrowserCommand() *exec.Cmd {
+	// The local-only profile has no website credentials and must start with auto-login.
+	return exec.CommandContext(e.ctx, "chromium", "--password-store=basic", "--start-fullscreen", "--class=JarvisDisplay", "--no-first-run", "--no-default-browser-check", "--hide-crash-restore-bubble", "--user-data-dir="+filepath.Join(e.root, "browser"), "--proxy-server=http://127.0.0.1:9", "--proxy-bypass-list=<-loopback>;"+strings.TrimPrefix(e.address, "http://"), e.URL())
+}
 func (e *Engine) EnsureProcesses() {
 	c := e.delivery.Configuration
 	if !c.Enabled || e.exited {
@@ -303,8 +307,7 @@ func (e *Engine) EnsureProcesses() {
 		return
 	}
 	if e.browser == nil {
-		// The local-only profile has no website credentials and must start with auto-login.
-		cmd := exec.CommandContext(e.ctx, "chromium", "--password-store=basic", "--start-fullscreen", "--class=JarvisDisplay", "--no-first-run", "--no-default-browser-check", "--hide-crash-restore-bubble", "--user-data-dir="+filepath.Join(e.root, "browser"), "--proxy-server=http://127.0.0.1:9", "--proxy-bypass-list=<-loopback>;"+strings.TrimPrefix(e.address, "http://"), e.URL())
+		cmd := e.GetBrowserCommand()
 		SetProcessGroup(cmd)
 		if err := cmd.Start(); err != nil {
 			e.statusError = "Chromium could not start"

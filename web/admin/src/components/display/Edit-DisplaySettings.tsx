@@ -31,11 +31,16 @@ export default function EditDisplaySettings({ scope, label }: { scope: string; l
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [preview, setPreview] = useState('')
-  const load = async () => {
-    const [s, a] = await Promise.all([apiClient.get<Settings>(`${prefix}/config/${encodeURIComponent(scope)}`), apiClient.get<Asset[]>(`${prefix}/assets`)])
-    setSettings(s.data); setDraft(s.data.overrides); setTexts({}); setAssets(a.data)
-  }
-  useEffect(() => { if (opened) void load().catch(e => setError(errorMessage(e, 'Could not load display settings'))) }, [opened, scope])
+  useEffect(() => {
+    if (!opened) return
+    let active = true
+    const load = async () => {
+      const [s, a] = await Promise.all([apiClient.get<Settings>(`${prefix}/config/${encodeURIComponent(scope)}`), apiClient.get<Asset[]>(`${prefix}/assets`)])
+      if (active) { setSettings(s.data); setDraft(s.data.overrides); setTexts({}); setAssets(a.data) }
+    }
+    void load().catch(e => { if (active) setError(errorMessage(e, 'Could not load display settings')) })
+    return () => { active = false }
+  }, [opened, scope])
   const refresh = async () => { const { data } = await apiClient.get<Settings>(`${prefix}/config/${encodeURIComponent(scope)}`); setSettings(data) }
   const update = (key: string, value: Value) => setDraft(old => ({ ...old, [key]: value }))
   const save = async () => {
