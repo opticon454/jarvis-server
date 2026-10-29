@@ -66,6 +66,13 @@ The legacy Python stack is retired for new installs as of `v0.1.0-rc18` (user 20
   captures, the hero clip of the desktop agent (user), and a photo of the Pi node with the HAT.
 - [ ] **Docs:** update jarvis-docs, which still describes the multi-service Python stack, for jarvisd: install, upgrade, `import-legacy`, and the Go node. Also re-check this repo's README and `docs/install/` against the released version.
 
+### Display frontend (new requirement, 2026-10-21)
+
+- [ ] Interactive dashboard for Raspberry Pi external displays, Surface-style devices and
+  Android tablets, with mandatory Home Assistant integration for live device status.
+  Feature scope and dependencies: [migration tracker](migration/Get-New-Features.md#display-01).
+  [Decision](decisions/2026-10-21-display-frontend.md). Implementation has not started.
+
 ### MLX on Apple Silicon (#299, in parallel)
 
 Decision: [2026-10-19-mlx-engine](decisions/2026-10-19-mlx-engine.md) (llm LD9); built as a generic Python engine layer that vLLM (#300) and Transformers (#301) reuse.

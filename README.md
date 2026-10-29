@@ -329,6 +329,10 @@ Some flags are not in `jarvis-agent --help` yet (`--no-overlay`, `--hat`, `--led
 
 ## Documentation
 
+The [feature migration tracker](docs/migration/Get-Migration-Tracker.md) inventories the
+legacy repositories, maps feature dependencies and records migration status, including the
+new Display frontend and the external Pantry services.
+
 | Doc | What |
 |---|---|
 | [docs/STATUS.md](docs/STATUS.md) | Where the project is: progress, decision log, session log |
