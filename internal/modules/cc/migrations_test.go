@@ -33,6 +33,7 @@ var expectedTables = []string{
 	// 12 packages
 	"cc_package_install_requests", "cc_test_install_requests",
 	"cc_package_assignments", "cc_package_assignment_nodes", // 00330
+	"cc_package_secrets", // 00340
 	// 13 mobile
 	"cc_callback_jobs",
 	// autonomy (docs/autonomy/PLAN.md)
