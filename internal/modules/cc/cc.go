@@ -409,6 +409,7 @@ func (m *Module) Register(mux *http.ServeMux, deps module.Deps) {
 	m.registerMobileAudio(mux)
 	// Phase 5c: smart home (doc 07).
 	m.registerSmartHome(mux)
+	m.RegisterDisplay(mux)
 	// Packages, command data and the node tools view (doc 12).
 	m.registerPackages(mux)
 	m.registerPackageAssignments(mux)
