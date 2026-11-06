@@ -125,7 +125,7 @@ If a node is offline the rotation stops with an error naming it. Run **Rotate ke
 
 ### Known limits
 
-- **A node stores the key and secrets in files.** The node writes `k2.json` and its secrets file with mode 0600 in a 0700 directory, as before. They are not encrypted at rest, so a person with root on the node can read them. Encrypting them with a key held outside the data directory (systemd-creds, a TPM or the OS keyring) is not built yet.
+- **Root on a node can still read them.** The node seals `k2.json` and `node-settings.json` (section 9), but the node must be able to use the key, so someone who is root on the node can read the at-rest key too. The seal protects copies of the data directory, not a compromised node.
 - **Rotation needs the nodes online.** A node that was offline during a rotation cannot open the new items until it receives the new key.
 - **Command states are replaced as a whole.** `command_states` is one blob, so Fleet settings reads the current values and merges your change. Two phones editing at once can overwrite each other.
 - **Python nodes** do not understand fleet config. They ignore the nudge.
@@ -140,6 +140,39 @@ If a node is offline the rotation stops with an error naming it. Run **Rotate ke
 | Value applied, then a per-node value took over         | Expected: per-node pushes win until the next fleet change to that type.                                                  |
 | Fleet settings says "No household key on this phone"   | Create the key, or restore it from the recovery code.                                                                    |
 | Restore says "not this household's key"                | The code is from another household or an older key. Find the newest entry in your vault, or rotate after restoring.      |
+
+## 9. Encryption at rest on a node
+
+`k2.json` (the household key) and `node-settings.json` (secrets, command switches and command data) are written as an AES-256-GCM envelope, not as readable JSON. The envelope is bound to its file name, so one file's contents cannot be moved into the other.
+
+The key that seals them is not in the data directory. The node looks for it in this order:
+
+1. **A systemd credential**, `$CREDENTIALS_DIRECTORY/jarvis-at-rest-key`. Prefer this on a Pi or server: `LoadCredentialEncrypted=` keeps the key encrypted on disk under the TPM or the host key and hands it to the service for each run.
+2. **A key file** named by `JARVIS_AT_REST_KEY_FILE`.
+3. **The default key file**, `~/.local/state/jarvis-agent/at-rest.key` (mode 0400, directory 0700), made on first start. This is a different directory from the node's config, so copying `~/.config/jarvis-agent` does not copy the key.
+
+What happens in the awkward cases:
+
+| Case                                               | Result                                                                                                         |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Existing plaintext files from before this change   | Read once, then rewritten sealed on that first start.                                                          |
+| Sealed files but the key is missing                | The node refuses to open the store (`at-rest key is missing`). It never makes a new key over them.             |
+| The key is wrong, or a file was altered or swapped | The store refuses to open (`cannot decrypt`). Nothing is overwritten.                                          |
+| No key can be made (read-only home, no home)       | The node logs a warning and keeps plaintext 0600 files so it still works. `JARVIS_AT_REST_REQUIRED=1` refuses. |
+
+The start-up log says which applies (`K2 and secrets are encrypted at rest key=...`, or the warning).
+
+To use a systemd credential on a node:
+
+```bash
+sudo mkdir -p /etc/jarvis-node
+head -c 32 /dev/urandom | basenc --base64url -w0 | sudo systemd-creds encrypt --name=jarvis-at-rest-key - /etc/jarvis-node/at-rest.cred
+# in the unit: LoadCredentialEncrypted=jarvis-at-rest-key:/etc/jarvis-node/at-rest.cred
+```
+
+Back up the key (or the credential and the host key) with the node's backups, or a restored backup will not open. A node you cannot recover is reset and re-paired: the secrets then come back from the fleet settings.
+
+Not covered: the node's own login (`node.json`, which holds the node key) is still a 0600 plaintext file.
 
 ## 10. Where the code is
 

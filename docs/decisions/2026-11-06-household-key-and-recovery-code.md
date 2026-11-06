@@ -13,4 +13,4 @@ Consequences, accepted:
 - One code covers every node and every phone in the household, so a leaked code means rotating the key.
 - Go only. Python nodes (jarvis-node-setup) are out of scope.
 
-Not done: encrypting the key and secrets at rest on a node (they stay in 0600 files in a 0700 directory, as before). See [docs/cc/14-fleet-config-and-recovery.md](../cc/14-fleet-config-and-recovery.md) section 8.
+At rest on a node: `k2.json` and `node-settings.json` are sealed under a key kept outside the data directory (a systemd credential, a named key file, or `~/.local/state/jarvis-agent/at-rest.key`). This stops a copied data directory leaking secrets; it does not stop root on the node. `node.json` (the node key) is still plaintext 0600. See [docs/cc/14-fleet-config-and-recovery.md](../cc/14-fleet-config-and-recovery.md) section 9.

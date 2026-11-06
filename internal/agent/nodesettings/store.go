@@ -31,7 +31,7 @@ type K2 struct {
 
 // Store holds the node's K2 and its settings: command secrets (keyed by key, scope and, for
 // scope "user", the user), the disabled commands and the commands' stored data. Everything is
-// in two 0600 JSON files. Safe for concurrent use.
+// in two 0600 files, sealed at rest when the store has a key (atrest.go). Safe for concurrent use.
 type Store struct {
 	dir    string
 	nodeID string
@@ -41,6 +41,9 @@ type Store struct {
 	key    []byte
 	s      settingsFile
 	sealed bool // Seal: a factory reset is wiping the files
+
+	ar         *AtRest // seals the two files at rest; nil writes plaintext
+	atRestNote string  // why ar is nil, for AtRest()
 }
 
 // ErrSealed is a write to a sealed store.
@@ -85,12 +88,18 @@ type settingsFile struct {
 	NextSeq          int64                        `json:"next_seq,omitempty"`
 }
 
-// OpenStore loads the store for nodeID from dir. Files written for another node (an earlier sign-in)
-// are removed, so their key, secrets and data never reach the new node.
-func OpenStore(dir, nodeID string) (*Store, error) {
-	st := &Store{dir: dir, nodeID: nodeID, s: settingsFile{NodeID: nodeID}}
+// OpenStore loads the store for nodeID from dir, writing plaintext files (tests and tools).
+// The agent uses OpenStoreAtRest.
+func OpenStore(dir, nodeID string) (*Store, error) { return OpenStoreWith(dir, nodeID, nil) }
+
+// OpenStoreWith loads the store with its files sealed under ar (nil: plaintext). Files written
+// for another node (an earlier sign-in) are removed, so their key, secrets and data never reach
+// the new node. Plaintext files from before at-rest sealing are read and rewritten sealed.
+func OpenStoreWith(dir, nodeID string, ar *AtRest) (*Store, error) {
+	st := &Store{dir: dir, nodeID: nodeID, s: settingsFile{NodeID: nodeID}, ar: ar}
+	var migrate []string
 	var k K2
-	switch err := readJSON(filepath.Join(dir, K2File), &k); {
+	switch legacy, err := st.load(K2File, &k); {
 	case errors.Is(err, os.ErrNotExist):
 	case err != nil:
 		return nil, err
@@ -104,9 +113,12 @@ func OpenStore(dir, nodeID string) (*Store, error) {
 			return nil, fmt.Errorf("%s: %w", K2File, err)
 		}
 		st.k2, st.key = &k, key
+		if legacy {
+			migrate = append(migrate, K2File)
+		}
 	}
 	var s settingsFile
-	switch err := readJSON(filepath.Join(dir, SettingsFile), &s); {
+	switch legacy, err := st.load(SettingsFile, &s); {
 	case errors.Is(err, os.ErrNotExist):
 	case err != nil:
 		return nil, err
@@ -116,16 +128,72 @@ func OpenStore(dir, nodeID string) (*Store, error) {
 		}
 	default:
 		st.s = s
+		if legacy {
+			migrate = append(migrate, SettingsFile)
+		}
+	}
+	for _, f := range migrate {
+		var err error
+		if f == K2File {
+			err = st.persist(K2File, st.k2)
+		} else {
+			err = st.persist(SettingsFile, st.s)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("sealing %s at rest: %w", f, err)
+		}
 	}
 	return st, nil
 }
 
-func readJSON(path string, v any) error {
+// AtRest says how K2 and the secrets are stored, for the log and status.
+func (st *Store) AtRest() string {
+	if st.ar != nil {
+		return "encrypted (" + st.ar.Origin + ")"
+	}
+	if st.atRestNote != "" {
+		return st.atRestNote
+	}
+	return "NOT encrypted: plaintext 0600 files"
+}
+
+// load reads one of the store's files into v. legacy reports a plaintext file that should be
+// rewritten sealed. A sealed file with no key, or the wrong one, is an error.
+func (st *Store) load(name string, v any) (legacy bool, err error) {
+	path := filepath.Join(st.dir, name)
 	b, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	if e, ok := asEnvelope(b); ok {
+		if st.ar == nil {
+			return false, fmt.Errorf("%s: %w", name, ErrAtRestKeyMissing)
+		}
+		if b, err = st.ar.open(name, e); err != nil {
+			return false, fmt.Errorf("%s: %w", name, err)
+		}
+	} else {
+		legacy = st.ar != nil
+	}
+	return legacy, decodeJSON(b, path, v)
+}
+
+// persist writes one of the store's files, sealed when the store has a key.
+func (st *Store) persist(name string, v any) error {
+	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
 	}
-	// Numbers stay exact (a command's record may hold integers past 2^53).
+	if st.ar != nil {
+		if b, err = st.ar.seal(name, b); err != nil {
+			return err
+		}
+	}
+	return writeBytes(filepath.Join(st.dir, name), b)
+}
+
+// decodeJSON keeps numbers exact (a command's record may hold integers past 2^53).
+func decodeJSON(b []byte, path string, v any) error {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.UseNumber()
 	if err := dec.Decode(v); err != nil {
@@ -134,13 +202,9 @@ func readJSON(path string, v any) error {
 	return nil
 }
 
-// writeJSON writes 0600 in a 0700 dir, atomically (as node.SaveCreds).
-func writeJSON(path string, v any) error {
+// writeBytes writes 0600 in a 0700 dir, atomically (as node.SaveCreds).
+func writeBytes(path string, b []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".settings-*.json")
@@ -184,7 +248,7 @@ func (st *Store) SaveK2(k2, kid, createdAt string) error {
 	if st.sealed {
 		return ErrSealed
 	}
-	if err := writeJSON(filepath.Join(st.dir, K2File), k); err != nil {
+	if err := st.persist(K2File, k); err != nil {
 		return err
 	}
 	st.k2, st.key = &k, key
@@ -196,7 +260,7 @@ func (st *Store) saveLocked() error {
 		return ErrSealed
 	}
 	st.s.NodeID = st.nodeID
-	return writeJSON(filepath.Join(st.dir, SettingsFile), st.s)
+	return st.persist(SettingsFile, st.s)
 }
 
 func sameUser(a, b *int64) bool {

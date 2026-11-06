@@ -262,7 +262,7 @@ func listen(ctx context.Context, args []string) error {
 	}
 	var tools node.Toolset
 	if !*noTools {
-		st, err := nodesettings.OpenStore(filepath.Dir(path), c.NodeID)
+		st, err := nodesettings.OpenStoreAtRest(filepath.Dir(path), c.NodeID, log)
 		if err != nil {
 			return fmt.Errorf("node settings: %w", err)
 		}

@@ -2207,8 +2207,9 @@ did not respond in time" (jarvis-node-mobile #105 fixes it: it says the key is m
 - **Storage.** `k2.json` and `node-settings.json` (secrets, disabled commands, command data),
   0600 next to `node.json`, each tagged with the node id. A new sign-in (another node id) drops
   them at start, so the next person never inherits a key, secrets or data. The Pi encrypts its
-  K2 file with a local Fernet key kept beside it; the agent relies on the file mode, the same
-  protection in practice.
+  K2 file with a local Fernet key kept beside it. The agent seals both files (AES-256-GCM) under
+  a key kept outside the data directory, with the 0600 mode as the fallback when none can be had
+  ([docs/cc/14](../cc/14-fleet-config-and-recovery.md) section 9).
 
 **Threat model.**
 

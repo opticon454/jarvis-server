@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 // K2 arrives before registration, keyed by the CC-assigned id; the node's later run (which
 // opens the store for its enrolled id) must still find it.
 func TestProvisionOptionsKeepK2ForTheRegisteredNode(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // the at-rest key file is made under HOME
 	path := filepath.Join(t.TempDir(), "jarvis-agent", "node.json")
 	o := provisionOptions(path, &provisioning.Simulated{}, "", nil)
 	if o.Provisioned() {
@@ -34,9 +36,16 @@ func TestProvisionOptionsKeepK2ForTheRegisteredNode(t *testing.T) {
 	if !o.Provisioned() || o.Identity().NodeID != "cc-node-1" {
 		t.Errorf("after creds: provisioned %v, id %q", o.Provisioned(), o.Identity().NodeID)
 	}
-	st, err := nodesettings.OpenStore(filepath.Dir(path), "cc-node-1")
+	// K2 is sealed at rest: a plain open must refuse it, the sealed open must read it.
+	if _, err := nodesettings.OpenStore(filepath.Dir(path), "cc-node-1"); !errors.Is(err, nodesettings.ErrAtRestKeyMissing) {
+		t.Errorf("a plaintext open of the sealed K2 file: %v", err)
+	}
+	st, err := nodesettings.OpenStoreAtRest(filepath.Dir(path), "cc-node-1", nil)
 	if err != nil || !st.HasK2() {
 		t.Errorf("K2 lost: %v", err)
+	}
+	if !strings.HasPrefix(st.AtRest(), "encrypted") {
+		t.Errorf("AtRest() = %q", st.AtRest())
 	}
 }
 

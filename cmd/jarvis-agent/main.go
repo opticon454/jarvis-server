@@ -764,7 +764,7 @@ func runAgent(ctx context.Context, args []string) error {
 		})()
 	}
 	// K2, command secrets and data live next to node.json; another node's are dropped here.
-	st, err := nodesettings.OpenStore(filepath.Dir(path), c.NodeID)
+	st, err := nodesettings.OpenStoreAtRest(filepath.Dir(path), c.NodeID, log)
 	if err != nil {
 		return fmt.Errorf("node settings: %w", err)
 	}

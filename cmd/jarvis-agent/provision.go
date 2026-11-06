@@ -206,7 +206,7 @@ func provisionOptions(path string, w provisioning.WiFi, apSSID string, log *slog
 		},
 		SaveCreds: func(c node.Creds) error { return node.SaveCreds(path, c) },
 		SaveK2: func(nodeID, k2, kid, createdAt string) error {
-			st, err := nodesettings.OpenStore(filepath.Dir(path), nodeID)
+			st, err := nodesettings.OpenStoreAtRest(filepath.Dir(path), nodeID, log)
 			if err != nil {
 				return err
 			}

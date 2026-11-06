@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -140,7 +141,7 @@ func (p PythonNode) Adopt(ctx context.Context, credsPath string) (node.Creds, er
 		return c, err
 	}
 	dir := filepath.Dir(credsPath)
-	st, err := nodesettings.OpenStore(dir, c.NodeID)
+	st, err := nodesettings.OpenStoreAtRest(dir, c.NodeID, slog.Default())
 	if err != nil {
 		return c, err
 	}
