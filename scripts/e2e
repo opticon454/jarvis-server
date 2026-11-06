@@ -408,15 +408,34 @@ run_mobile() {
     source "$ROOT/.sandbox/$NAME/sandbox.env"
 
     maestro=$(ensure_maestro)
-    ensure_avd
-    apk=$(build_apk "$REF" 0 "$FETCH")
+    if [ -n "${JARVIS_REMOTE_ADB:-}" ]; then
+      # A remote emulator (docs/dev/e2e.md, "Remote emulator"): already running and reachable by
+      # adb, and the app is built elsewhere. Nothing local is booted, built or killed.
+      apk=${JARVIS_APK:-}
+      [ -f "$apk" ] || die "JARVIS_REMOTE_ADB needs JARVIS_APK, the x86_64 release APK to install (got '${apk}')"
+    else
+      ensure_avd
+      apk=$(build_apk "$REF" 0 "$FETCH")
+    fi
     mobile_flows "$(git -C "$MOBILE_REPO" rev-parse --verify -q "$REF^{commit}")" "$mdir"
     (cd "$ROOT" && CGO_ENABLED=0 go build -o "$mdir/e2emobile" ./tools/e2emobile)
     flow_env android
 
-    trap kill_emulator EXIT
-    trap 'exit 130' INT TERM
-    boot_emulator
+    if [ -n "${JARVIS_REMOTE_ADB:-}" ]; then
+      SERIAL=$JARVIS_REMOTE_ADB
+      "$ADB" connect "$SERIAL" >/dev/null || die "adb connect $SERIAL failed"
+      for _ in $(seq 90); do
+        [ "$("$ADB" -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break
+        sleep 2
+      done
+      [ "$("$ADB" -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] ||
+        die "the remote emulator $SERIAL has not finished booting"
+      say "using the remote emulator $SERIAL"
+    else
+      trap kill_emulator EXIT
+      trap 'exit 130' INT TERM
+      boot_emulator
+    fi
     prep_emulator
     reverse_sandbox
     reverse_args

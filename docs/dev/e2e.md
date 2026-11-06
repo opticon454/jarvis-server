@@ -31,6 +31,22 @@ Exit status: 0 when every test passed, 1 when one failed or a suite could not ru
 Both are purged afterwards (`scripts/sandbox down --purge`) unless `--keep`. A run takes about
 2 minutes on the dev box (build, seed, ~70 browser tests).
 
+## Remote emulator
+
+`scripts/e2e mobile` boots its own emulator, which needs `/dev/kvm` on the machine running it. A machine
+without KVM can drive an emulator running elsewhere (for example the `AndroidEmulator` stack on Nemesis):
+
+```sh
+ssh -N -L 5555:127.0.0.1:5555 root@10.10.10.10 &        # the stack publishes adb on Nemesis loopback only
+JARVIS_REMOTE_ADB=127.0.0.1:5555 JARVIS_APK=/path/to/jarvis-<sha>.apk \
+  scripts/e2e mobile --mobile-repo <jarvis-node-mobile checkout>
+```
+
+`JARVIS_APK` is the x86_64 release APK built for the emulator (the stack's `apk-builder` service makes one on
+Nemesis). The runner connects adb, reverses the sandbox ports into the emulator, installs the APK and plays the
+flows of the checkout's `HEAD`. It never boots, builds for or kills a local emulator in this mode, and the remote
+emulator is left running: stop it with the stack's launcher.
+
 ## The report
 
 Everything a run leaves is under `.e2e/<run>/` (gitignored), `<run>` = `YYYYMMDD-HHMMSS-xxxxxx`:
