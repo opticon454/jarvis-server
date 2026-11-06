@@ -60,6 +60,13 @@ func DecodeKey(s string) ([]byte, error) {
 
 func aad(nodeID, configType string) []byte { return []byte(nodeID + ":" + configType) }
 
+// FleetAAD binds fleet config to a household and a config type, not to a node: one ciphertext
+// serves every node of the household. The literal "fleet" segment keeps it apart from the
+// per-node AAD ("{node_id}:{config_type}") as long as node ids are not "{household}:fleet".
+func FleetAAD(householdID, configType string) []byte {
+	return []byte(householdID + ":fleet:" + configType)
+}
+
 func gcm(key []byte) (cipher.AEAD, error) {
 	if len(key) != keyLen {
 		return nil, fmt.Errorf("K2 must be exactly 32 bytes, got %d", len(key))
@@ -74,6 +81,15 @@ func gcm(key []byte) (cipher.AEAD, error) {
 // Seal encrypts plaintext for (nodeID, configType). A nil nonce draws a fresh random one; tests
 // pass a fixed one to compare bytes with the Python node.
 func Seal(key []byte, nodeID, configType string, plaintext, nonce []byte) (Sealed, error) {
+	return sealAAD(key, aad(nodeID, configType), plaintext, nonce)
+}
+
+// SealFleet encrypts fleet config for a household and config type (see FleetAAD).
+func SealFleet(key []byte, householdID, configType string, plaintext, nonce []byte) (Sealed, error) {
+	return sealAAD(key, FleetAAD(householdID, configType), plaintext, nonce)
+}
+
+func sealAAD(key, ad, plaintext, nonce []byte) (Sealed, error) {
 	g, err := gcm(key)
 	if err != nil {
 		return Sealed{}, err
@@ -87,7 +103,7 @@ func Seal(key []byte, nodeID, configType string, plaintext, nonce []byte) (Seale
 	if len(nonce) != nonceLen {
 		return Sealed{}, fmt.Errorf("nonce must be %d bytes", nonceLen)
 	}
-	ct := g.Seal(nil, nonce, plaintext, aad(nodeID, configType))
+	ct := g.Seal(nil, nonce, plaintext, ad)
 	return Sealed{Ciphertext: b64(ct[:len(ct)-tagLen]), Nonce: b64(nonce), Tag: b64(ct[len(ct)-tagLen:])}, nil
 }
 
@@ -96,6 +112,15 @@ var ErrDecrypt = errors.New("decryption failed: wrong K2, node or config type, o
 
 // Open decrypts a message sealed for (nodeID, configType).
 func Open(key []byte, nodeID, configType string, s Sealed) ([]byte, error) {
+	return openAAD(key, aad(nodeID, configType), s)
+}
+
+// OpenFleet decrypts fleet config sealed for a household and config type.
+func OpenFleet(key []byte, householdID, configType string, s Sealed) ([]byte, error) {
+	return openAAD(key, FleetAAD(householdID, configType), s)
+}
+
+func openAAD(key, ad []byte, s Sealed) ([]byte, error) {
 	g, err := gcm(key)
 	if err != nil {
 		return nil, err
@@ -109,7 +134,7 @@ func Open(key []byte, nodeID, configType string, s Sealed) ([]byte, error) {
 	if len(nonce) != nonceLen || len(tag) != tagLen {
 		return nil, ErrDecrypt
 	}
-	pt, err := g.Open(nil, nonce, append(ct, tag...), aad(nodeID, configType))
+	pt, err := g.Open(nil, nonce, append(ct, tag...), ad)
 	if err != nil {
 		return nil, ErrDecrypt
 	}

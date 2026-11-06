@@ -149,9 +149,10 @@ func (m mergedData) UpdateRecord(command, key string, patch nodesettings.Object,
 // command-data browser (§16, "Stored data"). nodeConfig, when set, is the snapshot's node_config
 // (the Pi profile's piNodeConfig); nil is a computer's. devs, when set, are the snapshot's device
 // families and managers (a Pi's sidecar); nil reports none, as a computer has none. secrets,
-// when set, runs after the app pushes secrets (a Pi describes its families again).
+// when set, runs after the app pushes secrets (a Pi describes its families again). The caller sets
+// the returned handler's NodeSettings to apply fleet node settings.
 func wireNodeSettings(r *node.Runner, st *nodesettings.Store, tools node.Multi, nodeConfig func() map[string]any,
-	devs func(context.Context) nodesettings.Devices, secrets func(), log *slog.Logger) {
+	devs func(context.Context) nodesettings.Devices, secrets func(), log *slog.Logger) *nodesettings.Handler {
 	h := &nodesettings.Handler{NodeID: r.Creds.NodeID, Store: st, Commands: settingsCommands(tools),
 		UserSecrets: userSecrets(tools), NodeConfig: nodeConfig, Log: log,
 		Devices: devs, SecretsChanged: secrets, KeyChanged: r.BeatNow} // the app sees needs_k2: false within seconds
@@ -161,11 +162,12 @@ func wireNodeSettings(r *node.Runner, st *nodesettings.Store, tools node.Multi, 
 		return h
 	}
 	r.Topics = map[string]func(context.Context, *node.CC, []byte){}
-	for _, sub := range []string{nodesettings.TopicK2Provision, nodesettings.TopicSettingsRequest, nodesettings.TopicConfigPush} {
+	for _, sub := range []string{nodesettings.TopicK2Provision, nodesettings.TopicSettingsRequest, nodesettings.TopicConfigPush, nodesettings.TopicFleetConfig} {
 		r.Topics[sub] = func(ctx context.Context, cc *node.CC, payload []byte) { bind(cc).Handle(ctx, sub, payload) }
 	}
 	r.OnMQTTConnect = func(ctx context.Context, cc *node.CC) { bind(cc).Backstop(ctx) }
 	cd := &nodesettings.CommandData{Store: st, Commands: dataCommands(tools), Log: log}
 	r.Requests = map[string]func(context.Context, string, []byte) (string, []byte){nodesettings.TopicCommandData: cd.Handle}
 	r.NeedsK2 = func() bool { return !st.HasK2() }
+	return h
 }

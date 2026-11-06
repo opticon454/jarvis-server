@@ -28,6 +28,7 @@ type fakeCC struct {
 	requests []map[string]any
 	confirm  int // status of GET settings/requests/{rid}; 0 is 200
 	pending  []map[string]any
+	fleet    []map[string]any // GET fleet-config
 }
 
 func (f *fakeCC) Do(_ context.Context, method, path string, body, out any) error {
@@ -61,6 +62,8 @@ func (f *fakeCC) Do(_ context.Context, method, path string, body, out any) error
 		return answer(map[string]any{"status": "pending"})
 	case method == http.MethodGet && strings.HasSuffix(path, "/config/pending"):
 		return answer(f.pending)
+	case method == http.MethodGet && strings.HasSuffix(path, "/fleet-config"):
+		return answer(f.fleet)
 	}
 	return nil
 }

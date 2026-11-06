@@ -71,6 +71,10 @@ Auth: **N** = node `X-API-Key: node_id:node_key` (`deps.py:162-217`); **J** = us
 | POST | `/nodes/{id}/k2` | J (member) | mobile (`nodeSettingsApi.ts:70`) | `node_settings.py:451` |
 | GET | `/nodes/{id}/k2/provision/{rid}` | N (self) | node `_fetch_k2_from_cc` (`mqtt_tts_listener.py:1610`) | `node_settings.py:531` |
 | POST | `/nodes/{id}/k2/ack/{rid}` | N (**not checked against the path id**) | node `_ack_k2_provision` (`:1751`) | `node_settings.py:569` |
+| PUT/DELETE | `/households/{hh}/fleet-config/{type}` | J (household admin) | mobile Fleet settings. **jarvisd-only**, see [14](14-fleet-config-and-recovery.md) | `internal/modules/cc/fleetconfig.go` |
+| GET | `/households/{hh}/fleet-config` | J (member) | mobile, to check a recovery code. **jarvisd-only** | `fleetconfig.go` |
+| GET | `/nodes/{id}/fleet-config` | N (self) | Go node: unapplied household-sealed config. **jarvisd-only** | `fleetconfig.go` |
+| POST | `/nodes/{id}/fleet-config/{type}/ack` | N (self) | Go node `{revision}`. **jarvisd-only** | `fleetconfig.go` |
 | GET | `/node/mqtt-credentials` | N | node `utils/mqtt_credentials.py:58` | `api/node_mqtt.py:22` |
 | POST | `/nodes/{id}/actions` | J (member; a desktop agent: owner or household admin) | mobile (`commandCenterApi.ts`) | `api/node_commands.py:79` |
 | POST | `/nodes/{id}/commands` | A | jarvis-admin `routes/nodes.ts:44`, which only sends `train_adapter`. So it is **effectively LoRA-only.** **CUT (D9)** | `api/node_commands.py:138` |

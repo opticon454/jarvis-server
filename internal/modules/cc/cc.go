@@ -384,6 +384,13 @@ func (m *Module) Register(mux *http.ServeMux, deps module.Deps) {
 	mux.HandleFunc("GET "+v0+"/nodes/{node_id}/config/pending", m.node(m.handlePendingConfig))
 	mux.HandleFunc("POST "+v0+"/nodes/{node_id}/config/{push_id}/ack", m.node(m.handleAckConfig))
 
+	// Fleet config: household-sealed config every node pulls (fleetconfig.go).
+	mux.HandleFunc("PUT "+v0+"/households/{household_id}/fleet-config/{config_type}", m.user(m.handlePutFleetConfig))
+	mux.HandleFunc("DELETE "+v0+"/households/{household_id}/fleet-config/{config_type}", m.user(m.handleDeleteFleetConfig))
+	mux.HandleFunc("GET "+v0+"/households/{household_id}/fleet-config", m.user(m.handleListFleetConfig))
+	mux.HandleFunc("GET "+v0+"/nodes/{node_id}/fleet-config", m.node(m.handlePendingFleetConfig))
+	mux.HandleFunc("POST "+v0+"/nodes/{node_id}/fleet-config/{config_type}/ack", m.node(m.handleAckFleetConfig))
+
 	// Commands and result sinks (node_commands.py, smart_home.py, node_tools.py, ...).
 	mux.HandleFunc("POST "+v0+"/nodes/{node_id}/actions", m.user(m.handleNodeAction))
 	mux.HandleFunc("POST "+v0+"/nodes/{node_id}/node-config", m.user(m.handleNodeConfig))

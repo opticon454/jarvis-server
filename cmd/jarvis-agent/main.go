@@ -877,6 +877,7 @@ func runAgent(ctx context.Context, args []string) error {
 		tf.host.Alerts.Watch(alertLED(hd.leds))
 	}
 	var nodeConfig func() map[string]any
+	var pn *pinode.Node     // the node verbs and settings, for update_node_config and fleet config
 	live := voice.NewLive() // shared by local and remote voice settings
 	{
 		sp, err := settingsPath(*f.config)
@@ -888,7 +889,6 @@ func runAgent(ctx context.Context, args []string) error {
 			audio = tf.host.Audio
 		}
 		var state func() pinode.State
-		var pn *pinode.Node
 		nodeConfig, state = wirePiNode(r, vf, hf, f.mf, hd, live, audio, sp, log, &pn)
 		pn.Desktop = p.desktop
 		pn.ReadOnly = overriddenNodeConfig(explicitFlags)
@@ -918,7 +918,8 @@ func runAgent(ctx context.Context, args []string) error {
 			r.BeatNow()
 		}
 	}
-	wireNodeSettings(r, st, tools, nodeConfig, devs, secrets, log)
+	nsh := wireNodeSettings(r, st, tools, nodeConfig, devs, secrets, log)
+	nsh.NodeSettings = func(in map[string]any) error { return pn.ApplySettings(ctx, in) }
 	wirePackages(r, tf.pkgs, log)
 	// action, callback and toggle_command: the app's device control, a command's buttons and
 	// callbacks, run by the sidecar; a voice turn's action message is said between turns.

@@ -502,3 +502,26 @@ func TestLEDMode(t *testing.T) {
 		}
 	}
 }
+
+// Fleet config applies node settings through the same path as update_node_config.
+func TestApplySettingsMatchesUpdateNodeConfig(t *testing.T) {
+	n, leds, _, path := newNode(t)
+	ctx := context.Background()
+	if err := n.ApplySettings(ctx, map[string]any{"led_brightness_percent": 40.0, "cc_url": "http://evil.example"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(leds.bright) != 1 || leds.bright[0] != 40 {
+		t.Errorf("LED brightness not applied live: %v", leds.bright)
+	}
+	if b, _ := os.ReadFile(path); !strings.Contains(string(b), "40") {
+		t.Errorf("setting not saved to agent.json: %s", b)
+	}
+	// Trust anchors are dropped, and a message with nothing applicable is an error, so the
+	// handler leaves the fleet item unacked rather than claiming it applied.
+	if err := n.ApplySettings(ctx, map[string]any{"cc_url": "http://evil.example"}); err == nil {
+		t.Error("a trust-anchor-only change must not count as applied")
+	}
+	if err := n.ApplySettings(ctx, nil); err == nil {
+		t.Error("no settings must be an error")
+	}
+}

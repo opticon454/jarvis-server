@@ -19,6 +19,7 @@ const (
 	TopicK2Provision     = "k2/provision"
 	TopicSettingsRequest = "settings/request"
 	TopicConfigPush      = "config/push"
+	TopicFleetConfig     = "fleet/config"
 )
 
 // API is command-center as the node sees it (node.CC.Do: X-API-Key on every call).
@@ -49,8 +50,13 @@ type Handler struct {
 	// SecretsChanged, if set, runs after a secrets push is applied (a Pi's device families
 	// read their secrets to say whether they are configured).
 	SecretsChanged func()
+	// NodeSettings, if set, applies fleet "node_settings" (a Pi's LED, voice and volume keys,
+	// as the app's update_node_config does). A computer leaves it nil: the fleet item is acked
+	// and not applied.
+	NodeSettings func(settings map[string]any) error
 
-	pushMu sync.Mutex // one config-push pass at a time (a nudge and the backstop can overlap)
+	fleetMu sync.Mutex // one fleet pull at a time
+	pushMu  sync.Mutex // one config-push pass at a time (a nudge and the backstop can overlap)
 }
 
 func (h *Handler) path(format string, a ...any) string {
@@ -79,6 +85,8 @@ func (h *Handler) Handle(ctx context.Context, sub string, payload []byte) bool {
 		h.SettingsRequest(ctx, payload)
 	case TopicConfigPush:
 		h.ConfigPush(ctx)
+	case TopicFleetConfig:
+		h.FleetConfig(ctx)
 	default:
 		return false
 	}
@@ -120,6 +128,9 @@ func (h *Handler) K2Provision(ctx context.Context, payload []byte) {
 	if h.KeyChanged != nil {
 		h.KeyChanged()
 	}
+	// A node added after fleet config exists has nothing to open it with until now: pull it
+	// the moment the household key arrives, with no app interaction beyond the K2 relay.
+	h.FleetConfig(ctx)
 }
 
 func (h *Handler) ackK2(ctx context.Context, rid string, failure error) {
@@ -269,6 +280,60 @@ func (h *Handler) ConfigPush(ctx context.Context) int {
 	return n
 }
 
+// --- fleet config (docs/cc/14-fleet-config-and-recovery.md) ---
+
+type fleetItem struct {
+	HouseholdID string `json:"household_id"`
+	ConfigType  string `json:"config_type"`
+	Revision    int64  `json:"revision"`
+	Sealed
+}
+
+// FleetConfig pulls the household's fleet config this node has not applied, opens it with the
+// household key (held in the K2 slot), applies it and acks the revision. The server only offers
+// a revision once per node, so a per-node override pushed afterwards is not overwritten. An item
+// that cannot be opened or applied is left unacked and retried on the next nudge or reconnect.
+func (h *Handler) FleetConfig(ctx context.Context) int {
+	h.fleetMu.Lock()
+	defer h.fleetMu.Unlock()
+	var items []fleetItem
+	if err := h.API.Do(ctx, http.MethodGet, h.path("/fleet-config"), nil, &items); err != nil {
+		h.Log.Warn("fleet: pull failed", "err", err)
+		return 0
+	}
+	key := h.Store.Key()
+	n := 0
+	for _, it := range items {
+		if key == nil {
+			h.Log.Warn("fleet: config waiting but no household key is provisioned", "config_type", it.ConfigType)
+			continue
+		}
+		pt, err := OpenFleet(key, it.HouseholdID, it.ConfigType, it.Sealed)
+		if err != nil {
+			h.Log.Error("fleet: config not applied", "config_type", it.ConfigType, "err", err)
+			continue
+		}
+		dec := json.NewDecoder(strings.NewReader(string(pt)))
+		dec.UseNumber()
+		var data map[string]any
+		if err := dec.Decode(&data); err != nil || data == nil {
+			h.Log.Error("fleet: config is not a JSON object", "config_type", it.ConfigType)
+			continue
+		}
+		if err := h.apply(it.ConfigType, data); err != nil {
+			h.Log.Error("fleet: config not applied", "config_type", it.ConfigType, "err", err)
+			continue
+		}
+		if err := h.API.Do(ctx, http.MethodPost, h.path("/fleet-config/%s/ack", it.ConfigType), map[string]any{"revision": it.Revision}, nil); err != nil {
+			h.Log.Warn("fleet: ack failed", "err", err)
+			continue
+		}
+		n++
+		h.Log.Info("fleet: config applied", "config_type", it.ConfigType, "revision", it.Revision)
+	}
+	return n
+}
+
 // text is Python's str(value) for a decoded JSON scalar (the node stores str(value)).
 func text(v any) string {
 	switch x := v.(type) {
@@ -338,6 +403,21 @@ func (h *Handler) apply(configType string, data map[string]any) error {
 		}
 		h.Log.Info("config: context sharing switched", "command", name, "enabled", on)
 		return h.Store.SetContextShared(name, on)
+	case configType == "command_states":
+		// Fleet only: { command_name: enabled, ... }, every command in one message.
+		for name, v := range data {
+			if err := h.Store.SetEnabled(name, truthy(text(v))); err != nil {
+				return err
+			}
+		}
+		return nil
+	case configType == "node_settings":
+		// Fleet only: a Pi's LED, voice and volume keys (the app's update_node_config).
+		if h.NodeSettings == nil {
+			h.Log.Info("config: node settings not used on a desktop agent; acknowledged")
+			return nil
+		}
+		return h.NodeSettings(data)
 	case configType == "node_config", configType == "agent_registry",
 		strings.HasPrefix(configType, "auth:"):
 		// node_config is the Pi's update/egress consent (the agent updates itself differently);
@@ -403,4 +483,5 @@ func (h *Handler) Backstop(ctx context.Context) {
 		}
 	}
 	h.ConfigPush(ctx)
+	h.FleetConfig(ctx)
 }

@@ -281,6 +281,33 @@ func (n *Node) updateNodeConfig(ctx context.Context, cc node.Backend, det map[st
 		n.log.Warn("update_node_config: no settings provided")
 		return
 	}
+	if !n.applySettings(ctx, in) {
+		return
+	}
+	// Python restarts only for wake_word_model, which the Go node doesn't take.
+	if restart, _ := det["restart"].(bool); restart {
+		n.log.Info("update_node_config: no restart needed; every setting the Go node takes applies live")
+	}
+}
+
+// ApplySettings applies node settings the way update_node_config does (trust anchors dropped,
+// desktop-only filtering, live first, then saved to agent.json). Fleet config uses it. It reports
+// an error only when nothing could be applied.
+func (n *Node) ApplySettings(ctx context.Context, in map[string]any) error {
+	n.configMu.Lock()
+	defer n.configMu.Unlock()
+	if len(in) == 0 {
+		return errors.New("no settings provided")
+	}
+	if !n.applySettings(ctx, in) {
+		return errors.New("no setting was applied; see the log for why each key was ignored")
+	}
+	return nil
+}
+
+// applySettings is the body of update_node_config; configMu is held. It reports whether any key
+// was applied.
+func (n *Node) applySettings(ctx context.Context, in map[string]any) bool {
 	in, rejected := FilterTrustAnchors(in)
 	if n.Desktop {
 		for k := range in {
@@ -316,7 +343,7 @@ func (n *Node) updateNodeConfig(ctx context.Context, cc node.Backend, det map[st
 		applied = append(applied, k)
 	}
 	if len(changes) == 0 {
-		return
+		return false
 	}
 	// Live first, as Python: the user sees the effect even if the file can't be written.
 	n.mu.Lock()
@@ -354,11 +381,8 @@ func (n *Node) updateNodeConfig(ctx context.Context, cc node.Backend, det map[st
 			n.log.Error("update_node_config: not saved; it lasts until the agent restarts", "err", err)
 		}
 	}
-	n.log.Info("node config updated via MQTT", "keys", applied)
-	// Python restarts only for wake_word_model, which the Go node doesn't take.
-	if restart, _ := det["restart"].(bool); restart {
-		n.log.Info("update_node_config: no restart needed; every setting the Go node takes applies live")
-	}
+	n.log.Info("node config updated", "keys", applied)
+	return true
 }
 
 // truthy is Python's `bool(v) if isinstance(v, bool) else str(v).lower() in ("true", "1", "yes")`.

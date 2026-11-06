@@ -25,6 +25,7 @@ Source: `jarvis-command-center` (about 62k LOC, `app/`).
 | — | [phone-sip.md](phone-sip.md) | SIP provider (FreePBX etc.): design, gotchas, testing without a PBX |
 | 12 | [12-packages-and-command-data.md](12-packages-and-command-data.md) | Package install/uninstall/revert, test install, mobile command-data browser, node tools view |
 | 13 | [13-mobile-chat-inbox-settings.md](13-mobile-chat-inbox-settings.md) | Mobile SSE chat, inbox notifications, callbacks, household settings, settings definitions |
+| 14 | [14-fleet-config-and-recovery.md](14-fleet-config-and-recovery.md) | Fleet-wide node config sealed with a household key, the recovery code, adding nodes later, key rotation |
 
 ## Doc template (every subsystem doc uses these headings)
 
