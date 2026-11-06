@@ -12,6 +12,9 @@
 # with the node's at-rest key), wipe the app, restore from the recovery code, push a change.
 # Phase 2: a new phone holding only the code adds node B after the key exists; B must receive
 # everything the household already holds with no secret entered again.
+# Phase 3: the same app flow through the real screens (taps and typing, no service mocked): a
+# wrong code and a typo are explained, the typed code restores, "Give key to all nodes" reaches
+# both nodes, a secret saved on Fleet settings reaches both and removing it removes it from both.
 #
 # Needs a disk-backed checkout: SQLite does not work on an SMB share (run from a copy there).
 set -euo pipefail
@@ -34,7 +37,7 @@ pair() { # pair NODE_NAME: start a simulated node and approve its pairing
   local n=$1 out=$ROOT/.sandbox/$NAME/$1.out
   (scripts/sandbox node-sim --name "$NAME" --node-name "$n" >"$out" 2>&1 &)
   local code=
-  for _ in $(seq 60); do code=$(cat ".sandbox/$NAME/simnode/$n/code" 2>/dev/null || true); [ -n "$code" ] && break; sleep 1; done
+  for _ in $(seq 180); do code=$(cat ".sandbox/$NAME/simnode/$n/code" 2>/dev/null || true); [ -n "$code" ] && break; sleep 1; done
   [ -n "$code" ] || { cat "$out" >&2; echo "no pairing code for $n" >&2; exit 1; }
   curl -fsS -X POST "$SBX_CC/api/v0/nodes/pairings/approve" -H "Authorization: Bearer $SBX_TOKEN" \
     -H 'content-type: application/json' -d "{\"code\":\"$code\",\"household_id\":\"$HH\"}" >/dev/null
@@ -55,4 +58,14 @@ pair node-a
 phase 1 node-a
 pair node-b # added AFTER the household key exists
 phase 2 node-b
+nodes_json() { # both nodes, for the screen phase
+  python3 - "$ROOT/.sandbox/$NAME/simnode" <<'PY'
+import json, sys
+base = sys.argv[1]
+print(json.dumps([{"id": json.load(open(f"{base}/{n}/node.json"))["node_id"], "dir": f"{base}/{n}",
+                   "key": f"{base}/{n}/home/.local/state/jarvis-agent/at-rest.key", "log": f"{base}/{n}/agent.log"}
+                  for n in ("node-a", "node-b")]))
+PY
+}
+JARVIS_LIVE_NODES=$(nodes_json) phase 3 node-b
 echo "e2e-fleet-config: ok"

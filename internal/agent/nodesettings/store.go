@@ -86,6 +86,9 @@ type settingsFile struct {
 	NoContextSharing []string                     `json:"context_sharing_disabled,omitempty"`
 	Data             map[string]map[string]record `json:"command_data"`
 	NextSeq          int64                        `json:"next_seq,omitempty"`
+	// FleetKeys are the secret names each fleet config type last set on this node, so a name
+	// the fleet later drops can be removed (and one the fleet never set is left alone).
+	FleetKeys map[string][]string `json:"fleet_keys,omitempty"`
 }
 
 // OpenStore loads the store for nodeID from dir, writing plaintext files (tests and tools).
@@ -334,6 +337,32 @@ func (st *Store) SetSecret(key, value, scope, valueType string, uid *int64) erro
 // DeleteSecret removes a secret.
 func (st *Store) DeleteSecret(key, scope string, uid *int64) error {
 	return st.SetSecret(key, "", scope, "", uid)
+}
+
+// ReplaceFleetKeys records the secret names a fleet config type set and returns the ones it set
+// last time that it no longer has, in the order they were first set.
+func (st *Store) ReplaceFleetKeys(configType string, keys []string) (removed []string, err error) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.sealed {
+		return nil, ErrSealed
+	}
+	now := map[string]bool{}
+	for _, k := range keys {
+		now[k] = true
+	}
+	for _, k := range st.s.FleetKeys[configType] {
+		if !now[k] {
+			removed = append(removed, k)
+		}
+	}
+	if st.s.FleetKeys == nil {
+		st.s.FleetKeys = map[string][]string{}
+	}
+	sorted := slices.Clone(keys)
+	slices.Sort(sorted)
+	st.s.FleetKeys[configType] = sorted
+	return removed, st.saveLocked()
 }
 
 // Enabled says whether a command is offered (the command_registry config push).

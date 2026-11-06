@@ -183,3 +183,45 @@ func TestFleetSealMatchesTheApp(t *testing.T) {
 		t.Fatalf("OpenFleet = %q, %v", pt, err)
 	}
 }
+
+// Removing a value from the fleet removes it from every node, and only what the fleet put there.
+func TestFleetSecretsRemovalReachesTheNode(t *testing.T) {
+	h, f, _ := newHandler(t, "n1")
+	_ = h.Store.SaveK2(testKey, "kid", "")
+	key := h.Store.Key()
+	_ = h.Store.SetSecret("PER_NODE", "mine", "integration", "", nil) // set on this node alone
+	ctx := context.Background()
+
+	f.fleet = []map[string]any{sealedFleet(t, key, "hh1", "secrets", 1, map[string]any{"A": "1", "B": "2"})}
+	h.FleetConfig(ctx)
+	if h.Store.Secret("A", "integration", nil) != "1" || h.Store.Secret("B", "integration", nil) != "2" {
+		t.Fatal("setup: fleet secrets not applied")
+	}
+
+	f.fleet = []map[string]any{sealedFleet(t, key, "hh1", "secrets", 2, map[string]any{"A": "1"})}
+	h.FleetConfig(ctx)
+	if h.Store.Secret("B", "integration", nil) != "" {
+		t.Error("B was removed from the fleet but is still on the node")
+	}
+	if h.Store.Secret("A", "integration", nil) != "1" {
+		t.Error("A was removed although the fleet still has it")
+	}
+	if h.Store.Secret("PER_NODE", "integration", nil) != "mine" {
+		t.Error("a secret the fleet never set was deleted")
+	}
+
+	// The record of what the fleet set survives a restart, so a removal after a reboot still works.
+	again, err := OpenStore(h.Store.dir, "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h2 := &Handler{NodeID: "n1", API: f, Store: again, Log: quiet()}
+	f.fleet = []map[string]any{sealedFleet(t, again.Key(), "hh1", "secrets", 3, map[string]any{})}
+	h2.FleetConfig(ctx)
+	if again.Secret("A", "integration", nil) != "" {
+		t.Error("A survived the fleet emptying the type after a restart")
+	}
+	if again.Secret("PER_NODE", "integration", nil) != "mine" {
+		t.Error("a per-node secret was deleted by the fleet")
+	}
+}

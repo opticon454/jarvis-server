@@ -320,9 +320,16 @@ func (h *Handler) FleetConfig(ctx context.Context) int {
 			h.Log.Error("fleet: config is not a JSON object", "config_type", it.ConfigType)
 			continue
 		}
+		names := secretNames(it.ConfigType, data)
 		if err := h.apply(it.ConfigType, data); err != nil {
 			h.Log.Error("fleet: config not applied", "config_type", it.ConfigType, "err", err)
 			continue
+		}
+		if names != nil {
+			if err := h.dropRemovedSecrets(it.ConfigType, names); err != nil {
+				h.Log.Error("fleet: removed secrets not deleted", "config_type", it.ConfigType, "err", err)
+				continue
+			}
 		}
 		if err := h.API.Do(ctx, http.MethodPost, h.path("/fleet-config/%s/ack", it.ConfigType), map[string]any{"revision": it.Revision}, nil); err != nil {
 			h.Log.Warn("fleet: ack failed", "err", err)
@@ -332,6 +339,46 @@ func (h *Handler) FleetConfig(ctx context.Context) int {
 		h.Log.Info("fleet: config applied", "config_type", it.ConfigType, "revision", it.Revision)
 	}
 	return n
+}
+
+// secretNames are the secret names a fleet item sets, or nil for a type that is not secrets.
+// applySecrets deletes __user_id__ from data, so this is read before apply.
+func secretNames(configType string, data map[string]any) []string {
+	switch {
+	case configType == "command_states", configType == "node_settings", configType == "node_config",
+		configType == "agent_registry", configType == "command_registry", configType == "fast_path_registry",
+		strings.HasPrefix(configType, "auth:"):
+		return nil
+	}
+	names := []string{}
+	for k := range data {
+		if k != "__user_id__" {
+			names = append(names, k)
+		}
+	}
+	return names
+}
+
+// dropRemovedSecrets records what the fleet type set and deletes the names it no longer has.
+// Fleet secrets with __user_id__ are user-scoped, so a removal there is left to the user.
+func (h *Handler) dropRemovedSecrets(configType string, names []string) error {
+	removed, err := h.Store.ReplaceFleetKeys(configType, names)
+	if err != nil {
+		return err
+	}
+	for _, k := range removed {
+		scope := h.Store.ScopeOf(k)
+		if scope == "" {
+			continue // already gone
+		}
+		if err := h.Store.DeleteSecret(k, scope, nil); err != nil {
+			return err
+		}
+	}
+	if len(removed) > 0 && h.SecretsChanged != nil {
+		h.SecretsChanged()
+	}
+	return nil
 }
 
 // text is Python's str(value) for a decoded JSON scalar (the node stores str(value)).
