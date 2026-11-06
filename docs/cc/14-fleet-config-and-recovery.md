@@ -183,3 +183,9 @@ Not covered: the node's own login (`node.json`, which holds the node key) is sti
 | Node settings hook      | `internal/agent/pinode/pinode.go` (`ApplySettings`), wired in `cmd/jarvis-agent/main.go`                                               |
 | Contract test           | `contract/cc_fleet_config_test.go` (jarvisd-only)                                                                                      |
 | App                     | `jarvis-node-mobile`: `recoveryCodeService`, `householdKeyService`, `fleetConfigService`, the Recovery code and Fleet settings screens |
+
+## 11. How it is tested
+
+- **Unit and contract tests** cover the sealing, the routes, the node's pull and apply, at-rest sealing and the app's services and screens.
+- **`scripts/e2e-fleet-config`** runs the app's real services (under Jest in `jarvis-node-mobile`) against a real jarvisd and real `jarvis-agent` nodes in a sandbox. It creates the key, pushes secrets, node settings and command states, and gives node A the key. It checks the node's log and opens the node's sealed `node-settings.json` with its at-rest key. It then wipes the app's storage, restores from the typed recovery code (lower case, spaces for dashes), confirms a wrong code is refused, and pushes a change that node A applies. Finally a new phone holding only the code adds node B after the key exists, and B receives everything with no secret entered again. Run it from a disk-backed copy of the repo, because SQLite does not work on an SMB share.
+- **Not covered:** taps through the app screens on a device (no Maestro flows yet), and real Pi or Surface hardware.

@@ -6,6 +6,7 @@ package pinode
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -395,6 +396,9 @@ func truthy(v any) bool {
 		return s == "true" || s == "1" || s == "yes"
 	case float64:
 		return t == 1
+	case json.Number:
+		f, err := t.Float64()
+		return err == nil && f == 1
 	}
 	return false
 }
@@ -405,6 +409,11 @@ func number(v any) (float64, bool) {
 	switch t := v.(type) {
 	case float64:
 		f = t
+	case json.Number: // fleet config decodes with UseNumber
+		var err error
+		if f, err = t.Float64(); err != nil {
+			return 0, false
+		}
 	case string:
 		var err error
 		if f, err = strconv.ParseFloat(strings.TrimSpace(t), 64); err != nil {

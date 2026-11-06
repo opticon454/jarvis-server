@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# End to end for fleet config and the recovery code (docs/cc/14-fleet-config-and-recovery.md):
+# the mobile app's real services (jarvis-node-mobile, run under Jest) against a real jarvisd and
+# real jarvis-agent nodes in a sandbox.
+#
+#   scripts/e2e-fleet-config [--mobile DIR]
+#
+#   --mobile DIR  a jarvis-node-mobile checkout with node_modules (default: $JARVIS_MOBILE_DIR)
+#
+# Phase 1: create the household key, push secrets, node settings and command states, give node A
+# the key (the K2 relay), check it applied (agent log, and the sealed node-settings.json opened
+# with the node's at-rest key), wipe the app, restore from the recovery code, push a change.
+# Phase 2: a new phone holding only the code adds node B after the key exists; B must receive
+# everything the household already holds with no secret entered again.
+#
+# Needs a disk-backed checkout: SQLite does not work on an SMB share (run from a copy there).
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+MOBILE=${JARVIS_MOBILE_DIR:-}
+while [ $# -gt 0 ]; do case $1 in --mobile) MOBILE=$2; shift 2 ;; *) echo "unknown $1" >&2; exit 2 ;; esac; done
+[ -d "${MOBILE:-}/node_modules" ] || { echo "e2e-fleet-config: --mobile DIR with node_modules is required" >&2; exit 2; }
+NAME=fleete2e
+cd "$ROOT"
+. scripts/lib/go.sh
+cleanup() { scripts/sandbox down --name "$NAME" --purge >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+scripts/sandbox down --name "$NAME" --purge >/dev/null 2>&1 || true
+scripts/sandbox up --name "$NAME" --llm scripted >/dev/null
+. ".sandbox/$NAME/sandbox.env"
+HH=$(curl -fsS "$SBX_CC/api/v0/nodes/pairings" -H "Authorization: Bearer $SBX_TOKEN" | python3 -c 'import json,sys;print(json.load(sys.stdin)["households"][0]["id"])')
+CODEFILE=$ROOT/.sandbox/$NAME/recovery-code.txt
+
+pair() { # pair NODE_NAME: start a simulated node and approve its pairing
+  local n=$1 out=$ROOT/.sandbox/$NAME/$1.out
+  (scripts/sandbox node-sim --name "$NAME" --node-name "$n" >"$out" 2>&1 &)
+  local code=
+  for _ in $(seq 60); do code=$(cat ".sandbox/$NAME/simnode/$n/code" 2>/dev/null || true); [ -n "$code" ] && break; sleep 1; done
+  [ -n "$code" ] || { cat "$out" >&2; echo "no pairing code for $n" >&2; exit 1; }
+  curl -fsS -X POST "$SBX_CC/api/v0/nodes/pairings/approve" -H "Authorization: Bearer $SBX_TOKEN" \
+    -H 'content-type: application/json' -d "{\"code\":\"$code\",\"household_id\":\"$HH\"}" >/dev/null
+  for _ in $(seq 60); do [ -f ".sandbox/$NAME/simnode/$n/node.json" ] && grep -q "mqtt connected" ".sandbox/$NAME/simnode/$n/agent.log" 2>/dev/null && return 0; sleep 1; done
+  tail -20 ".sandbox/$NAME/simnode/$n/agent.log" >&2; echo "$n never connected" >&2; exit 1
+}
+
+phase() { # phase N NODE_NAME
+  local d=$ROOT/.sandbox/$NAME/simnode/$2
+  ( cd "$MOBILE" && PHASE=$1 JARVIS_LIVE_CC=$SBX_CC JARVIS_LIVE_TOKEN=$SBX_TOKEN JARVIS_LIVE_HOUSEHOLD=$HH \
+      JARVIS_LIVE_NODE=$(python3 -c "import json;print(json.load(open('$d/node.json'))['node_id'])") \
+      JARVIS_LIVE_NODE_DIR=$d JARVIS_LIVE_NODE_KEY=$d/home/.local/state/jarvis-agent/at-rest.key \
+      JARVIS_LIVE_NODE_LOG=$d/agent.log JARVIS_LIVE_CODE_FILE=$CODEFILE \
+      npx jest __tests__/live --ci )
+}
+
+pair node-a
+phase 1 node-a
+pair node-b # added AFTER the household key exists
+phase 2 node-b
+echo "e2e-fleet-config: ok"

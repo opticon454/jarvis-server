@@ -525,3 +525,23 @@ func TestApplySettingsMatchesUpdateNodeConfig(t *testing.T) {
 		t.Error("no settings must be an error")
 	}
 }
+
+// Fleet config decodes its JSON with UseNumber, so settings arrive as json.Number, not float64.
+func TestApplySettingsTakesJSONNumbers(t *testing.T) {
+	n, leds, _, _ := newNode(t)
+	if err := n.ApplySettings(context.Background(), map[string]any{
+		"led_brightness_percent": json.Number("40"),
+		"is_muted":               json.Number("1"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(leds.bright) != 1 || leds.bright[0] != 40 {
+		t.Errorf("LED brightness from a json.Number: %v", leds.bright)
+	}
+	if v, ok := number(json.Number("0.75")); !ok || v != 0.75 {
+		t.Errorf("number(json.Number) = %v, %v", v, ok)
+	}
+	if truthy(json.Number("0")) || !truthy(json.Number("1")) {
+		t.Error("truthy(json.Number)")
+	}
+}
