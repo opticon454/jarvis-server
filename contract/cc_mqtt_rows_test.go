@@ -218,6 +218,7 @@ func TestCCMQTTRows(t *testing.T) {
 		v := ExpectMQTT(t, c.NextTopic(t, mqttWait, base+"device-state"), Obj{
 			"request_id": UUID, "entity_id": Eq(entity), "domain": Eq("light"), "protocol": Eq("contractproto"),
 			"source": Eq("direct"), "cloud_id": Null, "local_ip": Eq("192.0.2.10"), "mac_address": Eq("02:00:00:00:00:10"),
+			"model": Optional(NullOr(String)), // jarvisd addition; legacy omits it
 		})
 		rid := v.(map[string]any)["request_id"].(string)
 		// LEGACY-BUG: /device-state-results is unauthenticated (doc 05 §8.2). D4: node auth,
@@ -277,13 +278,15 @@ func TestCCMQTTRows(t *testing.T) {
 		ExpectMQTT(t, c.NextTopic(t, mqttWait, base+"bluetooth-scan"), Obj{"request_id": Eq(rid), "role": Eq("sink")})
 		poll := nodePath + "/bluetooth-scan/" + rid
 		tg.Get(t, CommandCenter, poll, u.H()).Expect(http.StatusOK, Obj{
-			"status": Eq("pending"), "request_id": Eq(rid), "devices": Null, "device_count": Null, "error_message": Null,
+			"progress": Optional(NullOr(String)), // jarvisd addition (#408); legacy omits it
+			"status":   Eq("pending"), "request_id": Eq(rid), "devices": Null, "device_count": Null, "error_message": Null,
 		})
 		tg.Post(t, CommandCenter, poll+"/results", map[string]any{"devices": []map[string]any{
 			{"name": "Contract Speaker", "mac_address": "00:11:22:33:44:66", "device_type": "audio", "paired": true},
 		}}, n.APIKeyH()).Expect(http.StatusOK, Obj{"status": Eq("ok")})
 		tg.Get(t, CommandCenter, poll, u.H()).Expect(http.StatusOK, Obj{
-			"status": Eq("completed"), "request_id": Eq(rid), "device_count": Eq(1), "error_message": Null,
+			"progress": Optional(NullOr(String)), // jarvisd addition (#408); legacy omits it
+			"status":   Eq("completed"), "request_id": Eq(rid), "device_count": Eq(1), "error_message": Null,
 			"devices": All(ArrayOf(Obj{
 				"name": Eq("Contract Speaker"), "mac_address": Eq("00:11:22:33:44:66"), "device_type": Eq("audio"),
 				"paired": Eq(true), "connected": Eq(false),
@@ -304,12 +307,14 @@ func TestCCMQTTRows(t *testing.T) {
 			Obj{"request_id": Eq(rid), "mac_address": Eq("00:11:22:33:44:77"), "role": Eq("source")})
 		poll := nodePath + "/bluetooth/pair/" + rid
 		tg.Get(t, CommandCenter, poll, u.H()).Expect(http.StatusOK, Obj{
-			"status": Eq("pending"), "request_id": Eq(rid), "device_name": Null, "error_message": Null,
+			"progress": Optional(NullOr(String)), // jarvisd addition (#408); legacy omits it
+			"status":   Eq("pending"), "request_id": Eq(rid), "device_name": Null, "error_message": Null,
 		})
 		tg.Post(t, CommandCenter, poll+"/results", map[string]any{"success": true, "device_name": "Contract Speaker"}, n.APIKeyH()).
 			Expect(http.StatusOK, Obj{"status": Eq("ok")})
 		tg.Get(t, CommandCenter, poll, u.H()).Expect(http.StatusOK, Obj{
-			"status": Eq("completed"), "request_id": Eq(rid), "device_name": Eq("Contract Speaker"), "error_message": Null,
+			"progress": Optional(NullOr(String)), // jarvisd addition (#408); legacy omits it
+			"status":   Eq("completed"), "request_id": Eq(rid), "device_name": Eq("Contract Speaker"), "error_message": Null,
 		})
 
 		rid2 := rowsID(t, tg.Post(t, CommandCenter, nodePath+"/bluetooth/pair", map[string]any{"mac_address": "00:11:22:33:44:78", "role": "sink"}, u.H()))
@@ -318,7 +323,8 @@ func TestCCMQTTRows(t *testing.T) {
 		tg.Post(t, CommandCenter, nodePath+"/bluetooth/pair/"+rid2+"/results", map[string]any{"success": false, "error": "contract: refused"}, n.APIKeyH()).
 			Expect(http.StatusOK, Obj{"status": Eq("ok")})
 		tg.Get(t, CommandCenter, nodePath+"/bluetooth/pair/"+rid2, u.H()).Expect(http.StatusOK, Obj{
-			"status": Eq("failed"), "request_id": Eq(rid2), "device_name": Null, "error_message": Eq("contract: refused"),
+			"progress": Optional(NullOr(String)), // jarvisd addition (#408); legacy omits it
+			"status":   Eq("failed"), "request_id": Eq(rid2), "device_name": Null, "error_message": Eq("contract: refused"),
 		})
 	})
 
